@@ -34,10 +34,17 @@ from typing import Any
 
 from anthropic import Anthropic
 
+import sys
+
 from .audit import AuditLog
 from .config import AgentConfig
 from .sandbox import Sandbox
 from .tools import TOOLS, dispatch_tool
+
+
+def _log(msg: str) -> None:
+    """One-line progress output so the terminal isn't silent during a run."""
+    print(f"  {msg}", file=sys.stderr, flush=True)
 
 
 class RunStatus(str, Enum):
@@ -117,6 +124,7 @@ class BuilderAgent:
                 break
 
             iteration += 1
+            _log(f"--- iteration {iteration} ({elapsed:.1f}s) ---")
             audit.record("iteration_start", {"iteration": iteration, "elapsed_s": round(elapsed, 2)})
 
             # ----- model call -----
@@ -136,6 +144,7 @@ class BuilderAgent:
 
             total_input += response.usage.input_tokens
             total_output += response.usage.output_tokens
+            _log(f"  model: {response.stop_reason} | +{response.usage.input_tokens} in, +{response.usage.output_tokens} out")
             audit.record("model_response", {
                 "stop_reason": response.stop_reason,
                 "input_tokens": response.usage.input_tokens,
@@ -152,6 +161,7 @@ class BuilderAgent:
                 # Model decided it's done.
                 final_message = _extract_text(response.content)
                 status = RunStatus.SUCCESS
+                _log(f"  done ({total_input:,} tokens, {iteration} iterations)")
                 audit.record("end_turn", {"final_message_preview": final_message[:200]})
                 break
 
@@ -168,6 +178,8 @@ class BuilderAgent:
                 if block.type != "tool_use":
                     continue
                 total_tool_calls += 1
+                tool_summary = f"{block.name}({', '.join(f'{k}={v!r}' for k, v in block.input.items() if k != 'content')})"
+                _log(f"  tool: {tool_summary}")
                 result_text, is_error = dispatch_tool(
                     name=block.name,
                     tool_input=block.input,
