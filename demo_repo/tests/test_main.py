@@ -33,3 +33,22 @@ def test_list_items():
     r = client.get("/items")
     assert r.status_code == 200
     assert isinstance(r.json(), list)
+
+
+def test_delete_item_success():
+    r = client.post("/items", json={"name": "test_item", "price": 5.50})
+    assert r.status_code == 201
+    item = r.json()
+    item_id = item["id"]
+    
+    r = client.delete(f"/items/{item_id}")
+    assert r.status_code == 204
+    
+    r = client.get(f"/items/{item_id}")
+    assert r.status_code == 404
+
+
+def test_delete_missing_item_returns_404():
+    r = client.delete("/items/999999")
+    assert r.status_code == 404
+    assert r.json()["detail"] == "Item not found"
