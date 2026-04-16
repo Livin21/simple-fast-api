@@ -211,6 +211,11 @@ def _format_task(task: str) -> str:
     return (
         "You have a fresh sandbox with a cloned repo. Start by reading "
         "CLAUDE.md and listing the repo root.\n\n"
+        "## Environment\n\n"
+        "- Your working directory is the repo root. All tool paths are "
+        "relative to it — do not `cd` elsewhere.\n"
+        "- Python: use `python -m pytest` to run tests.\n"
+        "- Dependencies from requirements.txt are already installed.\n\n"
         f"## Task\n\n{task}\n\n"
         "Work step by step. Run tests after each meaningful change. "
         "When everything is green, emit your final summary message and stop."

@@ -11,6 +11,7 @@ enough to verify by eye, realistic enough to exercise the full loop
 from __future__ import annotations
 
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -42,6 +43,18 @@ def main() -> int:
     shutil.copytree(source_repo, sandbox_root)
     print(f"[setup] sandbox prepared at {sandbox_root}")
 
+    # Pre-install deps so the agent doesn't waste iterations on env setup.
+    req_file = sandbox_root / "requirements.txt"
+    if req_file.exists():
+        print("[setup] installing dependencies...")
+        subprocess.run(
+            ["uv", "pip", "install", "-q", "-r", str(req_file)],
+            cwd=sandbox_root,
+            check=True,
+            capture_output=True,
+        )
+        print("[setup] dependencies installed")
+
     config = AgentConfig()
     sandbox = Sandbox(
         root=sandbox_root,
@@ -67,7 +80,6 @@ def main() -> int:
     print()
 
     # Post-run verification: agent claims green tests; confirm from the outside.
-    import subprocess
     verify = subprocess.run(
         ["python", "-m", "pytest", "-q"],
         cwd=sandbox_root,

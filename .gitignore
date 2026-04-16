@@ -5,6 +5,7 @@ sandbox_scratch/
 runs/run_*.jsonl
 .env
 *.egg-info/
+.venv/
 
 # macOS
 .DS_Store
