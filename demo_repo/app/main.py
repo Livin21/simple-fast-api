@@ -45,3 +45,10 @@ def get_item(item_id: int) -> Item:
 @app.get("/items", response_model=list[Item])
 def list_items() -> list[Item]:
     return list(_items.values())
+
+
+@app.delete("/items/{item_id}", status_code=204)
+def delete_item(item_id: int) -> None:
+    if item_id not in _items:
+        raise HTTPException(status_code=404, detail="Item not found")
+    del _items[item_id]
