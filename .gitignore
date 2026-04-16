@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+sandbox_scratch/
+runs/run_*.jsonl
+.env
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# Editor
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/
