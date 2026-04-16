@@ -15,33 +15,50 @@ It ships as a runnable demo: the agent extends a small FastAPI service with a ne
 
 ## Quickstart
 
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
+
 ```bash
-cd builder-agent
-pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
-python run_demo.py
+# Install dependencies
+uv sync
+
+# Set your API key (create a .env file or export directly)
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
+
+# Run the demo
+export $(cat .env) && uv run python run_demo.py
 ```
 
-Expected output: agent adds a `DELETE /items/{item_id}` endpoint + matching tests, all tests pass, audit log appears at `runs/run_<timestamp>_<id>.jsonl`.
+The driver will:
+1. Copy `demo_repo/` to a fresh `sandbox_scratch/` directory
+2. Pre-install the demo repo's dependencies
+3. Run the agent (live progress streams to the terminal)
+4. Independently re-run pytest to verify the agent's claims
+5. Create a PR via `gh` CLI with the agent's changes and run metadata
+
+Expected output: agent adds a `DELETE /items/{item_id}` endpoint + matching tests (~9 iterations, ~30k tokens, ~35s), all tests pass, a PR is opened, and an audit log appears at `runs/run_<timestamp>_<id>.jsonl`.
+
+**Note:** PR creation requires the [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated. If `gh` is not available, the agent run and verification still complete — only the PR step is skipped.
 
 ## Project layout
 
 ```
 builder-agent/
-├── run_demo.py              # driver: fresh sandbox, runs agent, verifies
+├── run_demo.py              # driver + orchestrator: sandbox, agent, verify, PR
+├── pyproject.toml           # uv project config
 ├── requirements.txt
 ├── builder_agent/
-│   ├── agent.py             # the loop (~150 lines, single-use instance)
+│   ├── agent.py             # the loop (~240 lines, single-use instance)
 │   ├── config.py            # centralized tunables (caps, model, paths)
 │   ├── sandbox.py           # path-safe filesystem + bash with timeout
 │   ├── tools.py             # tool schemas + sandbox-routed dispatcher
 │   ├── audit.py             # JSONL append-only event log
 │   └── system_prompt.md     # behavior shaping
-└── demo_repo/
-    ├── CLAUDE.md            # repo conventions (the agent reads this first)
-    ├── requirements.txt
-    ├── app/main.py          # minimal FastAPI items service (baseline)
-    └── tests/test_main.py   # 4 baseline tests (all passing before agent runs)
+├── demo_repo/               # target repo the agent modifies
+│   ├── CLAUDE.md            # repo conventions (the agent reads this first)
+│   ├── requirements.txt
+│   ├── app/main.py          # minimal FastAPI items service (baseline)
+│   └── tests/test_main.py   # 4 baseline tests (all passing before agent runs)
+└── runs/                    # audit logs land here (gitignored except samples)
 ```
 
 ## The loop, in one paragraph
@@ -75,7 +92,7 @@ The agent claims "all tests passing." The driver then runs `pytest` itself and c
 
 This is a reference implementation of one stage. Out of scope:
 
-- **Git operations.** Commit/push/PR happen in a separate stage in the pipeline (Deploy, §3.6).
+- **Git operations.** The agent itself does not run git. The orchestrator layer in `run_demo.py` handles branch creation, commit, push, and PR — keeping agent code and git operations cleanly separated.
 - **Dependency approval gate.** §2.1 of the architecture puts a human gate on new dependency additions. The agent here just obeys "don't add deps unless required" via the system prompt; production would intercept `pip install`/`npm install` and route it through an approval flow.
 - **Prompt caching.** Would cut input token costs significantly in production. Omitted here for readability — add via `anthropic-beta: prompt-caching` headers when the system prompt + CLAUDE.md context exceed a threshold.
 - **Multi-file context retrieval.** The agent reads files on demand here. The pipeline's shared Code Index (§4.3) would pre-fetch relevant files based on the change manifest; that integration lives at the orchestrator layer, not inside the agent.
@@ -103,6 +120,7 @@ jq 'select(.event=="run_finished")' runs/run_*.jsonl
 | §1.2 agentic vs. structured | This is the agentic stage — loop, tools, state |
 | §3.3 Code Gen agent | The whole project |
 | §3.3 sandbox + token cap + wall-clock | `sandbox.py`, `config.BudgetCaps` |
+| §3.3 → §3.5 orchestrator | `_create_pr` in `run_demo.py` — branch, commit, PR via `gh` |
 | §4.4 audit log | `audit.py` |
 | §4.5 Docker → Firecracker escalation | Abstracted `Sandbox` interface |
 | §5.1 offline eval sets | Out of scope here; the demo task itself is a 1-item eval |
